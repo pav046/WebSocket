@@ -1,0 +1,101 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Курс BTC/USDT</title>
+    <link type="text/css" href="{% static 'trade/styles.css' %}" rel="stylesheet" />
+</head>
+<body>
+
+    <div class="container">
+        <h1>Курс BTC/USDT</h1>
+
+        <div class="price-box" id="latest-price">
+            Загружается...
+        </div>
+
+        <button id="toggle-history">Показать историю</button>
+
+        <div class="history-container" id="history-container">
+            <h2>История цен</h2>
+            <div id="history"></div>
+        </div>
+    </div>
+
+   <script>
+    const socket = new WebSocket('ws://localhost:8000/ws/trades/');
+    const latestPriceBox = document.getElementById('latest-price');
+    const toggleHistoryButton = document.getElementById('toggle-history');
+    const historyContainer = document.getElementById('history-container');
+    const historyDiv = document.getElementById('history');
+
+    function formatPrice(price) {
+        return parseFloat(price).toFixed(4);
+    }
+
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
+    socket.onmessage = function(event) {
+        try {
+            const message = JSON.parse(event.data);
+
+            if (message.price) {
+                const formattedPrice = formatPrice(message.price);
+                const formattedTime = formatTimestamp(message.timestamp);
+
+                latestPriceBox.textContent = `Последняя цена: $${formattedPrice}`;
+
+                const p = document.createElement('p');
+                p.classList.add('history-item');
+                p.textContent = `Цена: $${formattedPrice} — Время: ${formattedTime}`;
+                historyDiv.prepend(p);
+            } else {
+                console.error("Ошибка: поле 'price' отсутствует в данных", message);
+            }
+        } catch (error) {
+            console.error("Ошибка обработки данных из WebSocket:", error);
+        }
+    };
+
+    function loadHistory() {
+        fetch('/api/history/')
+            .then(response => response.json())
+            .then(data => {
+                historyDiv.innerHTML = '';
+                data.forEach(item => {
+                    const formattedPrice = formatPrice(item.price);
+                    const formattedTime = formatTimestamp(item.timestamp);
+
+                    const p = document.createElement('p');
+                    p.classList.add('history-item');
+                    p.textContent = `Цена: $${formattedPrice} — Время: ${formattedTime}`;
+                    historyDiv.appendChild(p);
+                });
+            })
+            .catch(error => console.error("Ошибка загрузки истории:", error));
+    }
+
+    toggleHistoryButton.onclick = function() {
+        if (historyContainer.style.display === "none" || historyContainer.style.display === "") {
+            historyContainer.style.display = "block";
+            toggleHistoryButton.textContent = "Скрыть историю";
+            loadHistory();
+        } else {
+            historyContainer.style.display = "none";
+            toggleHistoryButton.textContent = "Показать историю";
+        }
+    };
+</script>
+
+</body>
+</html>
